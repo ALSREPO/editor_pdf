@@ -1,5 +1,5 @@
 """
-pdf_ops.py - Módulo para la manipulación de archivos PDF.
+pdf_ops.py - Módulo para la manipulación en memoria de archivos PDF.
 """
 
 import io
@@ -9,122 +9,146 @@ from reportlab.lib.colors import white
 from reportlab.pdfgen import canvas
 
 
-def modify_headers_and_footers(
-    input_pdf: str | Path,
-    output_pdf: str | Path,
-    header_mode: str = "keep",      # Options: 'keep', 'hide', 'custom'
-    header_even: str = "",
-    header_odd: str = "",
-    header_italic: bool = False,    # Nueva opción para cursiva
-    footer_mode: str = "keep",      # Options: 'keep', 'hide', 'number'
-    start_number: int = 1
-) -> bool:
-    """
-    Modifica de forma independiente la cabecera y/o el pie de página de un PDF.
-    - header_mode: 
-        'keep' -> No modifica la cabecera.
-        'hide' -> Tapa la cabecera con una franja blanca.
-        'custom' -> Tapa la cabecera y escribe textos distintos para páginas pares e impares.
-    - footer_mode:
-        'keep' -> No modifica el pie de página.
-        'hide' -> Tapa el pie de página con una franja blanca.
-        'number' -> Tapa el pie de página y añade nueva numeración.
-    """
-    input_path = Path(input_pdf)
-    output_path = Path(output_pdf)
+class PDFEditorSession:
+    """Clase que mantiene el documento PDF actual en memoria y permite aplicar cambios acumulativos."""
 
-    if not input_path.exists():
-        raise FileNotFoundError(f"El archivo '{input_path}' no existe.")
+    def __init__(self):
+        self.writer: PdfWriter | None = None
+        self.original_name: str = ""
+        self.has_unsaved_changes: bool = False
 
-    reader = PdfReader(input_path)
-    writer = PdfWriter()
+    def load_pdf(self, pdf_path: str | Path) -> bool:
+        """Carga un archivo PDF del disco a la sesión en memoria."""
+        path = Path(pdf_path)
+        if not path.exists() or path.suffix.lower() != ".pdf":
+            return False
 
-    for idx, page in enumerate(reader.pages):
-        page_width = float(page.mediabox.width)
-        page_height = float(page.mediabox.height)
-        page_num = idx + 1  # Página actual (1-based)
+        reader = PdfReader(path)
+        self.writer = PdfWriter()
+        for page in reader.pages:
+            self.writer.add_page(page)
 
-        packet = io.BytesIO()
-        c = canvas.Canvas(packet, pagesize=(page_width, page_height))
+        self.original_name = path.stem
+        self.has_unsaved_changes = False
+        return True
 
-        # --- GESTIÓN DE LA CABECERA ---
-        if header_mode in ("hide", "custom"):
-            tamano_cabecera = 50
-            c.setFillColor(white)
-            c.setStrokeColor(white)
-            c.rect(0, page_height - tamano_cabecera, page_width, tamano_cabecera, fill=True, stroke=False)
+    def is_loaded(self) -> bool:
+        """Indica si hay un PDF cargado en la sesión."""
+        return self.writer is not None and len(self.writer.pages) > 0
 
-            if header_mode == "custom":
-                c.setFillColorRGB(0, 0, 0)
-                # Seleccionar fuente en cursiva (Oblique) o normal
-                font_name = "Helvetica-Oblique" if header_italic else "Helvetica"
-                c.setFont(font_name, 9)
+    def get_total_pages(self) -> int:
+        """Devuelve el número total de páginas del PDF en memoria."""
+        return len(self.writer.pages) if self.is_loaded() else 0
 
-                text = header_even if page_num % 2 == 0 else header_odd
-                if text:
-                    c.drawCentredString(page_width / 2.0, page_height - 45, text)
+    def extract_page_range(self, start_page: int, end_page: int) -> None:
+        """Conserva únicamente el rango de páginas indicado, descartando el resto."""
+        if not self.is_loaded():
+            raise RuntimeError("No hay ningún PDF cargado.")
 
-        # --- GESTIÓN DEL PIE DE PÁGINA ---
-        if footer_mode in ("hide", "number"):
-            tamano_pie = 55
-            c.setFillColor(white)
-            c.setStrokeColor(white)
-            c.rect(0, 0, page_width, tamano_pie, fill=True, stroke=False)
+        total = self.get_total_pages()
+        # Validar rangos (convertimos de 1-based a 0-based)
+        if start_page < 1 or end_page > total or start_page > end_page:
+            raise ValueError(f"Rango inválido. El documento actual tiene {total} página(s).")
 
-            if footer_mode == "number":
-                c.setFillColorRGB(0, 0, 0)
-                c.setFont("Helvetica", 9)
+        new_writer = PdfWriter()
+        # pypdf usa índices 0-based
+        for i in range(start_page - 1, end_page):
+            new_writer.add_page(self.writer.pages[i])
 
-                current_page_label = start_number + idx
-                label_text = f"- {current_page_label} -"
-                margin = 40  # Margen lateral en puntos (pt) desde el borde de la página
+        self.writer = new_writer
+        self.has_unsaved_changes = True
 
-                if page_num % 2 == 0:
-                    # Página PAR: Esquina izquierda
-                    c.drawString(margin + 20, 40, label_text)
-                else:
-                    # Página IMPAR: Esquina derecha
-                    c.drawRightString(page_width - margin, 40, label_text)
+    def modify_headers_and_footers(
+        self,
+        header_mode: str = "keep",      # 'keep', 'hide', 'custom'
+        header_even: str = "",
+        header_odd: str = "",
+        header_italic: bool = False,
+        footer_mode: str = "keep",      # 'keep', 'hide', 'number'
+        start_number: int = 1
+    ) -> None:
+        """
+        Aplica modificaciones de cabecera y/o pie de página sobre el documento en memoria.
+        Modifica de forma independiente la cabecera y/o el pie de página de un PDF.
+        - header_mode: 
+            'keep' -> No modifica la cabecera.
+            'hide' -> Tapa la cabecera con una franja blanca.
+            'custom' -> Tapa la cabecera y escribe textos distintos para páginas pares e impares.
+        - footer_mode:
+            'keep' -> No modifica el pie de página.
+            'hide' -> Tapa el pie de página con una franja blanca.
+            'number' -> Tapa el pie de página y añade nueva numeración.
+        """
+        if not self.is_loaded():
+            raise RuntimeError("No hay ningún PDF cargado.")
 
-        # Aplicar la capa con las modificaciones si aplica
-        if header_mode != "keep" or footer_mode != "keep":
-            c.save()
-            packet.seek(0)
-            overlay_pdf = PdfReader(packet)
-            page.merge_page(overlay_pdf.pages[0])
+        new_writer = PdfWriter()
 
-        writer.add_page(page)
+        for idx, page in enumerate(self.writer.pages):
+            page_width = float(page.mediabox.width)
+            page_height = float(page.mediabox.height)
+            page_num = idx + 1  # 1-based
 
-    with open(output_path, "wb") as f_out:
-        writer.write(f_out)
+            packet = io.BytesIO()
+            c = canvas.Canvas(packet, pagesize=(page_width, page_height))
 
-    return True
+            # --- GESTIÓN DE LA CABECERA ---
+            if header_mode in ("hide", "custom"):
+                tamano_cabecera = 50
+                c.setFillColor(white)
+                c.setStrokeColor(white)
+                c.rect(0, page_height - tamano_cabecera, page_width, tamano_cabecera, fill=True, stroke=False)
 
+                if header_mode == "custom":
+                    c.setFillColorRGB(0, 0, 0)
+                    font_name = "Helvetica-Oblique" if header_italic else "Helvetica"
+                    c.setFont(font_name, 9)
 
-def extract_page_range(input_pdf: str | Path, output_pdf: str | Path, start_page: int, end_page: int) -> bool:
-    """
-    Extrae un rango de páginas (incluyente, basado en índice 1) de un PDF a otro.
-    """
-    input_path = Path(input_pdf)
-    output_path = Path(output_pdf)
+                    text = header_even if page_num % 2 == 0 else header_odd
+                    if text:
+                        c.drawCentredString(page_width / 2.0, page_height - 45, text)
 
-    if not input_path.exists():
-        raise FileNotFoundError(f"El archivo '{input_path}' no existe.")
+            # --- GESTIÓN DEL PIE DE PÁGINA ---
+            if footer_mode in ("hide", "number"):
+                tamano_pie = 55
+                c.setFillColor(white)
+                c.setStrokeColor(white)
+                c.rect(0, 0, page_width, tamano_pie, fill=True, stroke=False)
 
-    reader = PdfReader(input_path)
-    total_pages = len(reader.pages)
+                if footer_mode == "number":
+                    c.setFillColorRGB(0, 0, 0)
+                    c.setFont("Helvetica", 9)
 
-    # Validar rangos (convertimos de 1-based a 0-based)
-    if start_page < 1 or end_page > total_pages or start_page > end_page:
-        raise ValueError(f"Rango inválido. El PDF tiene {total_pages} página(s).")
+                    current_page_label = start_number + idx
+                    label_text = f"- {current_page_label} -"
+                    margin = 40 # Margen lateral en puntos (pt) desde el borde de la página
 
-    writer = PdfWriter()
+                    if page_num % 2 == 0:
+                        # Página PAR: Esquina izquierda
+                        c.drawString(margin + 20, 40, label_text)
+                    else:
+                        # Página IMPAR: Esquina derecha
+                        c.drawRightString(page_width - margin, 40, label_text)
 
-    # pypdf usa índices 0-based; el rango en Python es excluyente en el límite superior
-    for i in range(start_page - 1, end_page):
-        writer.add_page(reader.pages[i])
+            # Si se aplicó alguna capa, se combina
+            if header_mode != "keep" or footer_mode != "keep":
+                c.save()
+                packet.seek(0)
+                overlay_pdf = PdfReader(packet)
+                page.merge_page(overlay_pdf.pages[0])
 
-    with open(output_path, "wb") as f_out:
-        writer.write(f_out)
+            new_writer.add_page(page)
 
-    return True
+        self.writer = new_writer
+        self.has_unsaved_changes = True
+
+    def save_to_disk(self, output_path: str | Path) -> None:
+        """Guarda el resultado final del PDF acumulado a un archivo en disco."""
+        if not self.is_loaded():
+            raise RuntimeError("No hay nada que guardar.")
+
+        out = Path(output_path)
+        with open(out, "wb") as f_out:
+            self.writer.write(f_out)
+
+        self.has_unsaved_changes = False
