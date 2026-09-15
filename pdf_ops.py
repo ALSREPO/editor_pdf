@@ -16,21 +16,32 @@ class PDFEditorSession:
         self.writer: PdfWriter | None = None
         self.original_name: str = ""
         self.has_unsaved_changes: bool = False
+        self._original_bytes: bytes | None = None  # Resguardo del PDF original intacto
 
     def load_pdf(self, pdf_path: str | Path) -> bool:
         """Carga un archivo PDF del disco a la sesión en memoria."""
-        path = Path(pdf_path)
+        path = Path(pdf_path).resolve()
         if not path.exists() or path.suffix.lower() != ".pdf":
             return False
 
-        reader = PdfReader(path)
+        with open(path, "rb") as f:
+            self._original_bytes = f.read()
+
+        self.original_name = path.stem
+        self.reset_to_original()
+        return True
+
+    def reset_to_original(self) -> None:
+        """Restaura la sesión en memoria al estado original del archivo cargado."""
+        if not self._original_bytes:
+            return
+
+        reader = PdfReader(io.BytesIO(self._original_bytes))
         self.writer = PdfWriter()
         for page in reader.pages:
             self.writer.add_page(page)
 
-        self.original_name = path.stem
         self.has_unsaved_changes = False
-        return True
 
     def is_loaded(self) -> bool:
         """Indica si hay un PDF cargado en la sesión."""
@@ -142,8 +153,8 @@ class PDFEditorSession:
         self.writer = new_writer
         self.has_unsaved_changes = True
 
-    def save_to_disk(self, output_path: str | Path) -> None:
-        """Guarda el resultado final del PDF acumulado a un archivo en disco."""
+    def save_to_disk(self, output_path: str | Path, keep_original: bool = True) -> None:
+        """Guarda la versión modificada en disco y, opcionalmente, restaura el original en memoria."""
         if not self.is_loaded():
             raise RuntimeError("No hay nada que guardar.")
 
@@ -151,7 +162,11 @@ class PDFEditorSession:
         with open(out, "wb") as f_out:
             self.writer.write(f_out)
 
-        self.has_unsaved_changes = False
+        # Al terminar de guardar, volvemos a dejar cargado el documento original si se requiere
+        if keep_original:
+            self.reset_to_original()
+        else:
+            self.has_unsaved_changes = False
 
     def insert_blank_pages(self, position_index: int, count: int = 1) -> None:
         """

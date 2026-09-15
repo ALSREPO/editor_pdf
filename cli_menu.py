@@ -113,7 +113,7 @@ def run_modify_footer(session: PDFEditorSession) -> None:
 
 
 def run_save_pdf(session: PDFEditorSession) -> None:
-    """Exporta el trabajo acumulado a un archivo en el disco duro."""
+    """Exporta el trabajo acumulado a un archivo en disco y mantiene cargado el documento original."""
     if not session.is_loaded():
         print("\nx No hay ningún documento en memoria para guardar.")
         return
@@ -123,8 +123,10 @@ def run_save_pdf(session: PDFEditorSession) -> None:
     out_path = Path(out_str) if out_str else Path.cwd() / default_out
 
     try:
-        session.save_to_disk(out_path)
+        # Guardamos en disco y restauramos automáticamente el estado original cargado
+        session.save_to_disk(out_path, keep_original=True)
         print(f"\n✓ Archivo guardado con éxito en: {out_path.name}")
+        print(f"✓ Se mantiene cargado en la sesión el documento original: '{session.original_name}.pdf'")
     except Exception as e:
         print(f"x Error al guardar el archivo: {e}")
 
