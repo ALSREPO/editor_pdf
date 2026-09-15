@@ -405,3 +405,160 @@ class PDFEditorSession:
 
         self.writer = new_writer
         self.has_unsaved_changes = True
+
+    def insert_index_from_txt(
+        self,
+        txt_path: Path,
+        position: str = "at_end",
+        margin_mode: str = "odd"
+    ) -> None:
+        """
+        Lee un archivo .txt con la estructura del índice y genera las páginas
+        maquetadas en A4 al estilo LaTeX para insertarlas en el PDF.
+        - margin_mode: 'odd' (comienza en impar), 'even' (comienza en par), 'centered' (márgenes iguales).
+        """
+        if not txt_path.exists() or not txt_path.is_file():
+            raise ValueError(f"La ruta especificada no es un archivo válido: {txt_path}")
+
+        entries = []
+        with open(txt_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = [p.strip() for p in line.split("|")]
+                if len(parts) == 3:
+                    entries.append({
+                        "type": parts[0].upper(),
+                        "title": parts[1],
+                        "page": parts[2]
+                    })
+
+        if not entries:
+            raise ValueError("El archivo .txt no contiene entradas válidas con formato 'TIPO | TÍTULO | PÁGINA'.")
+
+        buffer = io.BytesIO()
+        ajuste_ancho = 0.726  # Factor de escala para ajustar el tamaño de la página si es necesario
+        ajuste_alto = 0.77   # Factor de escala para ajustar el tamaño de la página si es necesario
+        a4_width, a4_height = 595.27 * ajuste_ancho, 841.89 * ajuste_alto  # Dimensiones A4 en puntos
+
+        top_margin = 1.0 * 28.3465
+        bottom_margin = 2.0 * 28.3465
+        inner_margin = 1.8 * 28.3465
+        outer_margin = 1.2 * 28.3465
+        centered_margin = 1.5 * 28.3465
+
+        c = canvas.Canvas(buffer, pagesize=(a4_width, a4_height))
+        page_index = 0  # Contador relativo de páginas del índice
+
+        def get_margins(idx: int):
+            if margin_mode == "centered":
+                return centered_margin, centered_margin
+            elif margin_mode == "even":
+                # La primera página (idx 0) es Par (lomo a la derecha)
+                return (outer_margin, inner_margin) if idx % 2 == 0 else (inner_margin, outer_margin)
+            else:
+                # 'odd': La primera página (idx 0) es Impar (lomo a la izquierda)
+                return (inner_margin, outer_margin) if idx % 2 == 0 else (outer_margin, inner_margin)
+
+        m_left, m_right = get_margins(page_index)
+        content_width = a4_width - m_left - m_right
+        y = a4_height - top_margin - 60
+
+        # Encabezado del Índice ALINEADO A LA DERECHA
+        c.setFont("Helvetica-Bold", 18)
+        c.drawRightString(m_left + content_width, y, "Índice General")
+        y -= 35
+
+        for entry in entries:
+            if y < bottom_margin + 20:
+                c.showPage()
+                page_index += 1
+                m_left, m_right = get_margins(page_index)
+                content_width = a4_width - m_left - m_right
+                y = a4_height - top_margin - 30
+
+            etype = entry["type"]
+            title = entry["title"]
+            page_str = entry["page"]
+
+            if etype == "L":    # Libro
+                y -= 10
+                font_name, font_size = "Times-Bold", 13
+                indent = 0
+                has_dots = False
+            elif etype == "C":  # Capítulo
+                y -= 5
+                font_name, font_size = "Times-Bold", 10
+                indent = 0
+                has_dots = False
+            elif etype == "S":  # Sección
+                font_name, font_size = "Times-Roman", 9
+                indent = 15
+                has_dots = True
+            elif etype == "SS": # Subsección
+                font_name, font_size = "Times-Roman", 9
+                indent = 30
+                has_dots = True
+            else:
+                continue
+
+            c.setFont(font_name, font_size)
+            x_start = m_left + indent
+            x_end = m_left + content_width
+
+            c.drawString(x_start, y, title)
+            c.drawRightString(x_end, y, page_str)
+
+            if has_dots:
+                title_width = c.stringWidth(title, font_name, font_size)
+                page_width = c.stringWidth(page_str, font_name, font_size)
+
+                dots_start_x = x_start + title_width + 8
+                dots_end_x = x_end - page_width - 8
+
+                if dots_end_x > dots_start_x:
+                    c.setFont("Times-Roman", 9)
+                    dot_w = c.stringWidth(". ", "Times-Roman", 9)
+                    curr_x = dots_start_x
+                    while curr_x + dot_w < dots_end_x:
+                        c.drawString(curr_x, y, ". ")
+                        curr_x += dot_w * 1.8
+
+            y -= 12
+
+        c.showPage()
+        c.save()
+
+        buffer.seek(0)
+        index_reader = PdfReader(buffer)
+        new_writer = PdfWriter()
+
+        if self.is_loaded():
+            total_orig = len(self.writer.pages)
+
+            if position == "at_end":
+                for page in self.writer.pages:
+                    new_writer.add_page(page)
+                for page in index_reader.pages:
+                    new_writer.add_page(page)
+
+            elif position == "after_front_matter" and total_orig >= 4:
+                for i in range(4):
+                    new_writer.add_page(self.writer.pages[i])
+                for page in index_reader.pages:
+                    new_writer.add_page(page)
+                for i in range(4, total_orig):
+                    new_writer.add_page(self.writer.pages[i])
+
+            else:
+                for page in index_reader.pages:
+                    new_writer.add_page(page)
+                for page in self.writer.pages:
+                    new_writer.add_page(page)
+        else:
+            for page in index_reader.pages:
+                new_writer.add_page(page)
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True

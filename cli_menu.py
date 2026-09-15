@@ -382,3 +382,53 @@ def run_insert_front_matter(session: PDFEditorSession) -> None:
         print(f"  Total páginas en la sesión: {session.get_total_pages()}")
     except Exception as e:
         print(f"x Error al generar la portada: {e}")
+
+def run_insert_index(session: PDFEditorSession) -> None:
+    """Submenú para cargar un archivo txt e insertar el índice maquetado."""
+    print("\n--- Generar e Insertar Índice desde TXT ---")
+    path_str = input("Ruta al archivo .txt del índice (ej: indice.txt): ").strip()
+
+    if not path_str:
+        print("x Error: Debes especificar el nombre o la ruta del archivo .txt.")
+        return
+
+    txt_path = Path(path_str).resolve()
+
+    if not txt_path.exists() or not txt_path.is_file():
+        print(f"x Error: No se encontró el archivo '{txt_path}'. Asegúrate de incluir la extensión .txt.")
+        return
+
+    print("\n¿Dónde deseas insertar el índice?")
+    print("1) Al final del todo [Predeterminado]")
+    print("2) Tras la portada (después de la página 4)")
+    print("3) Al principio del todo (Página 1)")
+    
+    opt_pos = input("Selecciona posición [1]: ").strip() or "1"
+
+    if opt_pos == "2":
+        pos = "after_front_matter"
+    elif opt_pos == "3":
+        pos = "at_start"
+    else:
+        pos = "at_end"
+
+    print("\n¿Qué disposición de márgenes debe tener la primera página del índice?")
+    print("1) Página Impar (Lomo a la izquierda: 1.8cm izq / 1.2cm der) [Predeterminado]")
+    print("2) Página Par (Lomo a la derecha: 1.2cm izq / 1.8cm der)")
+    print("3) Centrado (Márgenes iguales: 1.5cm izq / 1.5cm der)")
+
+    opt_margin = input("Selecciona disposición [1]: ").strip() or "1"
+
+    if opt_margin == "2":
+        margin_mode = "even"
+    elif opt_margin == "3":
+        margin_mode = "centered"
+    else:
+        margin_mode = "odd"
+
+    try:
+        session.insert_index_from_txt(txt_path, position=pos, margin_mode=margin_mode)
+        print("\n✓ Índice generado e insertado correctamente.")
+        print(f"  Total páginas en la sesión: {session.get_total_pages()}")
+    except Exception as e:
+        print(f"x Error al procesar el índice: {e}")

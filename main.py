@@ -16,6 +16,7 @@ from cli_menu import (
     run_modify_header,
     run_modify_footer,
     run_save_pdf,
+    run_insert_index,
 )
 
 
@@ -47,9 +48,10 @@ def main():
         print("5) Unir varios archivos PDF")
         print("6) Ajustar márgenes para encuadernación")
         print("7) Insertar páginas de portada iniciales")
-        print("8) Modificar o ocultar cabecera")
-        print("9) Modificar, ocultar o renumerar pie de página")
-        print("10) Guardar PDF final en disco")
+        print("8) Insertar índice desde archivo TXT")
+        print("9) Modificar o ocultar cabecera")
+        print("10) Modificar, ocultar o renumerar pie de página")
+        print("11) Guardar PDF final en disco")
         print("0) Salir")
         print("----------------------------------")
 
@@ -70,10 +72,12 @@ def main():
         elif option == "7":
             run_insert_front_matter(session)
         elif option == "8":
-            run_modify_header(session)
+            run_insert_index(session)
         elif option == "9":
-            run_modify_footer(session)
+            run_modify_header(session)
         elif option == "10":
+            run_modify_footer(session)
+        elif option == "11":
             run_save_pdf(session)
         elif option == "0":
             if session.has_unsaved_changes:
