@@ -152,3 +152,39 @@ class PDFEditorSession:
             self.writer.write(f_out)
 
         self.has_unsaved_changes = False
+
+    def insert_blank_pages(self, position_index: int, count: int = 1) -> None:
+        """
+        Inserta 'count' páginas en blanco en la posición deseada.
+        - position_index: Índice 0-based donde se insertarán las páginas
+          (0 = al principio, len(pages) = al final).
+        """
+        if not self.is_loaded():
+            raise RuntimeError("No hay ningún PDF cargado.")
+
+        total_pages = self.get_total_pages()
+        if position_index < 0 or position_index > total_pages:
+            raise ValueError(f"Posición inválida. Debe estar entre 0 y {total_pages}.")
+
+        # Obtener las dimensiones de la primera página como referencia para las páginas en blanco
+        first_page = self.writer.pages[0]
+        page_width = float(first_page.mediabox.width)
+        page_height = float(first_page.mediabox.height)
+
+        new_writer = PdfWriter()
+        current_pages = list(self.writer.pages)
+
+        # Copiar páginas anteriores a la posición de inserción
+        for i in range(position_index):
+            new_writer.add_page(current_pages[i])
+
+        # Insertar las páginas en blanco
+        for _ in range(count):
+            new_writer.add_blank_page(width=page_width, height=page_height)
+
+        # Copiar las páginas restantes
+        for i in range(position_index, total_pages):
+            new_writer.add_page(current_pages[i])
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True

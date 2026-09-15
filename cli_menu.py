@@ -127,3 +127,46 @@ def run_save_pdf(session: PDFEditorSession) -> None:
         print(f"\n✓ Archivo guardado con éxito en: {out_path.name}")
     except Exception as e:
         print(f"x Error al guardar el archivo: {e}")
+
+def run_insert_blank_pages(session: PDFEditorSession) -> None:
+    """Submenú para insertar hojas en blanco en el PDF."""
+    if not session.is_loaded():
+        print("\nx Primero debes seleccionar un archivo PDF válido.")
+        return
+
+    total = session.get_total_pages()
+    print(f"\n--- Insertar Páginas en Blanco (Total páginas actuales: {total}) ---")
+    print("¿Dónde deseas insertar las hojas en blanco?")
+    print("1) Al principio del documento")
+    print("2) Al final del documento")
+    print("3) Después de una página específica")
+    print("0) Cancelar")
+
+    opt = input("Selecciona una opción: ").strip()
+
+    if opt == "1":
+        pos_index = 0
+    elif opt == "2":
+        pos_index = total
+    elif opt == "3":
+        try:
+            target_page = int(input(f"Insertar después de la página (1 - {total}): "))
+            if target_page < 1 or target_page > total:
+                print("x Número de página fuera de rango.")
+                return
+            pos_index = target_page
+        except ValueError:
+            print("x Entrada no válida.")
+            return
+    else:
+        return
+
+    # Cantidad de hojas (por defecto 1)
+    count_str = input("¿Cuántas hojas en blanco deseas insertar? [1]: ").strip()
+    count = int(count_str) if count_str.isdigit() and int(count_str) > 0 else 1
+
+    try:
+        session.insert_blank_pages(position_index=pos_index, count=count)
+        print(f"\n✓ Se han insertado {count} página(s) en blanco. Total actual: {session.get_total_pages()} páginas.")
+    except Exception as e:
+        print(f"x Error al insertar páginas: {e}")

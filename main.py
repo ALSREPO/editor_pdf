@@ -1,5 +1,5 @@
 """
-main.py - Aplicación principal con soporte para cambios acumulativos.
+main.py
 """
 
 import sys
@@ -8,6 +8,7 @@ from pdf_ops import PDFEditorSession
 from cli_menu import (
     select_pdf_file,
     run_extract_range,
+    run_insert_blank_pages,
     run_modify_header,
     run_modify_footer,
     run_save_pdf,
@@ -17,7 +18,6 @@ from cli_menu import (
 def main():
     session = PDFEditorSession()
 
-    # Cargar archivo inicial si se pasa como argumento de consola
     if len(sys.argv) > 1:
         arg_path = Path(sys.argv[1]).resolve()
         if session.load_pdf(arg_path):
@@ -29,7 +29,7 @@ def main():
         if session.is_loaded():
             status = f"[{session.original_name}.pdf | {session.get_total_pages()} pág.]"
             if session.has_unsaved_changes:
-                status += " *"  # Asterisco indica cambios pendientes de guardar
+                status += " *"
         else:
             status = "[Ninguno seleccionado]"
 
@@ -38,9 +38,10 @@ def main():
         print("==================================")
         print(f"1) Cargar / Cambiar PDF {status}")
         print("2) Extraer / Recortar rango de páginas")
-        print("3) Modificar o ocultar cabecera")
-        print("4) Modificar, ocultar o renumerar pie de página")
-        print("5) Guardar PDF final en disco")
+        print("3) Insertar hojas en blanco")
+        print("4) Modificar o ocultar cabecera")
+        print("5) Modificar, ocultar o renumerar pie de página")
+        print("6) Guardar PDF final en disco")
         print("0) Salir")
         print("----------------------------------")
 
@@ -51,10 +52,12 @@ def main():
         elif option == "2":
             run_extract_range(session)
         elif option == "3":
-            run_modify_header(session)
+            run_insert_blank_pages(session)
         elif option == "4":
-            run_modify_footer(session)
+            run_modify_header(session)
         elif option == "5":
+            run_modify_footer(session)
+        elif option == "6":
             run_save_pdf(session)
         elif option == "0":
             if session.has_unsaved_changes:
