@@ -14,12 +14,13 @@ class PDFEditorSession:
 
     def __init__(self):
         self.writer: PdfWriter | None = None
+        self.original_path: Path | None = None  # Ruta completa del archivo cargado
         self.original_name: str = ""
         self.has_unsaved_changes: bool = False
         self._original_bytes: bytes | None = None  # Resguardo del PDF original intacto
 
     def load_pdf(self, pdf_path: str | Path) -> bool:
-        """Carga un archivo PDF del disco a la sesión en memoria."""
+        """Carga un archivo PDF del disco reteniendo su ruta original."""
         path = Path(pdf_path).resolve()
         if not path.exists() or path.suffix.lower() != ".pdf":
             return False
@@ -27,6 +28,7 @@ class PDFEditorSession:
         with open(path, "rb") as f:
             self._original_bytes = f.read()
 
+        self.original_path = path
         self.original_name = path.stem
         self.reset_to_original()
         return True
@@ -153,20 +155,42 @@ class PDFEditorSession:
         self.writer = new_writer
         self.has_unsaved_changes = True
 
-    def save_to_disk(self, output_path: str | Path, keep_original: bool = True) -> None:
-        """Guarda la versión modificada en disco y, opcionalmente, restaura el original en memoria."""
+    def update_original_from_bytes(self, new_bytes: bytes, new_path: Path) -> None:
+        """Actualiza la copia original almacenada en memoria con un nuevo estado/archivo."""
+        self._original_bytes = new_bytes
+        self.original_path = new_path.resolve()
+        self.original_name = self.original_path.stem
+        self.reset_to_original()
+
+    def save_to_disk(self, output_path: str | Path, overwrite: bool = False) -> None:
+        """
+        Guarda la versión modificada en disco.
+        - overwrite=True: Sobrescribe el original en disco y actualiza la sesión con el nuevo estado.
+        - overwrite=False: Guarda en un archivo nuevo y mantiene la copia original base en memoria.
+        """
         if not self.is_loaded():
             raise RuntimeError("No hay nada que guardar.")
 
-        out = Path(output_path)
-        with open(out, "wb") as f_out:
-            self.writer.write(f_out)
+        out = Path(output_path).resolve()
 
-        # Al terminar de guardar, volvemos a dejar cargado el documento original si se requiere
-        if keep_original:
-            self.reset_to_original()
+        # Generar los bytes del documento actual en memoria
+        buffer = io.BytesIO()
+        self.writer.write(buffer)
+        saved_bytes = buffer.getvalue()
+
+        # Asegurar que el directorio destino existe antes de escribir
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+        # Escribir en el disco
+        with open(out, "wb") as f_out:
+            f_out.write(saved_bytes)
+
+        if overwrite:
+            # Pasa a ser el nuevo documento base de la sesión
+            self.update_original_from_bytes(saved_bytes, out)
         else:
-            self.has_unsaved_changes = False
+            # Mantiene cargado el documento base original previa a la modificación
+            self.reset_to_original()
 
     def insert_blank_pages(self, position_index: int, count: int = 1) -> None:
         """
@@ -212,18 +236,21 @@ class PDFEditorSession:
         if not pdf_paths:
             raise ValueError("La lista de archivos PDF a unir está vacía.")
 
-        valid_paths = [Path(p) for p in pdf_paths if Path(p).is_file() and Path(p).suffix.lower() == ".pdf"]
-        
+        valid_paths = [Path(p).resolve() for p in pdf_paths if Path(p).is_file() and Path(p).suffix.lower() == ".pdf"]
         if not valid_paths:
-            raise FileNotFoundError("No se encontraron archivos PDF válidos en la lista proporcionada.")
+            raise FileNotFoundError("No se encontraron archivos PDF válidos.")
 
         new_writer = PdfWriter()
-
         for path in valid_paths:
             reader = PdfReader(path)
             for page in reader.pages:
                 new_writer.add_page(page)
 
-        self.writer = new_writer
-        self.original_name = f"merged_{valid_paths[0].stem}"
-        self.has_unsaved_changes = True
+        out_buffer = io.BytesIO()
+        new_writer.write(out_buffer)
+        self._original_bytes = out_buffer.getvalue()
+        
+        # Al unir, asignamos como ruta de referencia la ubicación del primer PDF de la lista
+        self.original_path = valid_paths[0].parent / f"merged_{valid_paths[0].stem}.pdf"
+        self.original_name = self.original_path.stem
+        self.reset_to_original()

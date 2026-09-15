@@ -113,20 +113,40 @@ def run_modify_footer(session: PDFEditorSession) -> None:
 
 
 def run_save_pdf(session: PDFEditorSession) -> None:
-    """Exporta el trabajo acumulado a un archivo en disco y mantiene cargado el documento original."""
-    if not session.is_loaded():
+    """Exporta el trabajo acumulado respetando directorios y sobreescribiendo en la ruta original si se desea."""
+    if not session.is_loaded() or not session.original_path:
         print("\nx No hay ningún documento en memoria para guardar.")
         return
 
-    default_out = f"{session.original_name}_editado.pdf"
-    out_str = input(f"Nombre/ruta para guardar el archivo final [{default_out}]: ").strip()
-    out_path = Path(out_str) if out_str else Path.cwd() / default_out
+    print("\n--- Guardar PDF ---")
+    print(f"Ruta actual del archivo cargado: {session.original_path}")
+    out_str = input("Nombre/ruta para el archivo (deja en blanco para sobrescribir el archivo original): ").strip()
 
     try:
-        # Guardamos en disco y restauramos automáticamente el estado original cargado
-        session.save_to_disk(out_path, keep_original=True)
-        print(f"\n✓ Archivo guardado con éxito en: {out_path.name}")
-        print(f"✓ Se mantiene cargado en la sesión el documento original: '{session.original_name}.pdf'")
+        if not out_str:
+            # Sobrescribir exactamente el archivo en su carpeta de origen
+            out_path = session.original_path
+            session.save_to_disk(out_path, overwrite=True)
+            print(f"\n✓ Archivo sobrescrito con éxito en su ubicación original:")
+            print(f"  -> {out_path}")
+            print("✓ El archivo sobrescrito es ahora el documento activo en la sesión.")
+        else:
+            # Si el usuario introduce solo un nombre o una ruta nueva
+            target_path = Path(out_str)
+            if target_path.suffix.lower() != ".pdf":
+                target_path = target_path.with_suffix(".pdf")
+
+            # Si introdujo una ruta relativa simple (sin carpeta), la guardamos en la misma carpeta que el original
+            if not target_path.is_absolute() and len(target_path.parts) == 1:
+                out_path = session.original_path.parent / target_path
+            else:
+                out_path = target_path.resolve()
+
+            session.save_to_disk(out_path, overwrite=False)
+            print(f"\n✓ Nuevo archivo guardado con éxito en:")
+            print(f"  -> {out_path}")
+            print(f"✓ Se mantiene cargado en la sesión el documento base: '{session.original_path.name}'")
+
     except Exception as e:
         print(f"x Error al guardar el archivo: {e}")
 
