@@ -308,3 +308,100 @@ class PDFEditorSession:
 
         self.writer = new_writer
         self.has_unsaved_changes = True
+
+    def insert_book_front_matter(
+        self,
+        title: str,
+        subtitle: str,
+        author: str,
+        isbn: str = "-",
+        year_pub: str = "2026",
+        year_print: str = "2026",
+        printed_by: str = "ALS"
+    ) -> None:
+        """
+        Genera e inserta 4 páginas iniciales de libro en formato A4 respetando
+        márgenes de lomo y fuentes nativas Helvetica/Times-Roman.
+        """
+        buffer = io.BytesIO()
+        ajuste_ancho = 0.726  # Factor de escala para ajustar el tamaño de la página si es necesario
+        ajuste_alto = 0.77   # Factor de escala para ajustar el tamaño de la página si es necesario
+        a4_width, a4_height = 595.27 * ajuste_ancho, 841.89 * ajuste_alto  # Dimensiones A4 en puntos
+
+        # Conversión de márgenes a puntos
+        top_margin = 1.0 * 28.3465    # 1.0 cm
+        bottom_margin = 2.0 * 28.3465 # 2.0 cm
+        inner_margin = 1.8 * 28.3465  # 1.8 cm
+        outer_margin = 1.2 * 28.3465  # 1.2 cm
+
+        c = canvas.Canvas(buffer, pagesize=(a4_width, a4_height))
+
+        # Helper para resolver el margen izquierdo/derecho según la paridad de la página
+        def get_page_margins(page_num: int):
+            if page_num % 2 != 0:
+                # Impar: Lomo a la izquierda
+                return inner_margin, outer_margin
+            else:
+                # Par: Lomo a la derecha
+                return outer_margin, inner_margin
+
+        # --- PÁGINA 1: Título y Subtítulo ---
+        m_left, m_right = get_page_margins(1)
+        content_width = a4_width - m_left - m_right
+        center_x = m_left + (content_width / 2.0)
+        y = a4_height - top_margin - 80
+
+        c.setFont("Helvetica-Bold", 21)
+        c.drawCentredString(center_x, y, title)
+
+        if subtitle:
+            c.setFont("Helvetica", 14)
+            c.drawCentredString(center_x, y - 35, subtitle)
+        c.showPage()
+
+        # --- PÁGINA 2: Créditos Editoriales ---
+        m_left, m_right = get_page_margins(2)
+        y = bottom_margin + 0
+
+        c.setFont("Times-Roman", 8)
+        c.drawString(m_left, y + 45, f"{title}{f', {subtitle}' if subtitle else ''}")
+        c.drawString(m_left, y + 33, f"Autor: {author}")
+        c.drawString(m_left, y + 21, f"Fecha publicación: {year_pub}")
+        c.drawString(m_left, y + 9, f"ISBN: {isbn}")
+        c.drawString(m_left, y - 3, f"Impreso por {printed_by} en {year_print}")
+        c.showPage()
+
+        # --- PÁGINA 3: Autor, Título y Subtítulo ---
+        m_left, m_right = get_page_margins(3)
+        center_x = m_left + ((a4_width - m_left - m_right) / 2.0)
+        y = a4_height - top_margin - 80
+
+        c.setFont("Helvetica", 14)
+        c.drawCentredString(center_x, y, author)
+
+        c.setFont("Helvetica-Bold", 21)
+        c.drawCentredString(center_x, y - 40, title)
+
+        if subtitle:
+            c.setFont("Helvetica", 12)
+            c.drawCentredString(center_x, y - 70, subtitle)
+        c.showPage()
+
+        # --- PÁGINA 4: Hoja en Blanco ---
+        c.showPage()
+        c.save()
+
+        # Unir las 4 páginas generadas al inicio del documento cargado
+        buffer.seek(0)
+        front_reader = PdfReader(buffer)
+        new_writer = PdfWriter()
+
+        for page in front_reader.pages:
+            new_writer.add_page(page)
+
+        if self.is_loaded():
+            for page in self.writer.pages:
+                new_writer.add_page(page)
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True

@@ -352,3 +352,33 @@ def run_adjust_margins(session: PDFEditorSession) -> None:
         print("x Error: Por favor, introduce un número válido (ejemplo: 6 u 1.5).")
     except Exception as e:
         print(f"x Error al ajustar márgenes: {e}")
+
+def run_insert_front_matter(session: PDFEditorSession) -> None:
+    """Submenú para generar e insertar las 4 páginas de presentación al inicio."""
+    print("\n--- Insertar Páginas de Portada (A4) ---")
+    title = input("Título del libro: ").strip()
+    if not title:
+        print("x El título es obligatorio.")
+        return
+
+    subtitle = input("Subtítulo (opcional): ").strip()
+    author = input("Nombre del autor: ").strip()
+    isbn = input("ISBN [ - ]: ").strip() or "-"
+    year_pub = input("Fecha/Año de publicación [2026]: ").strip() or "2026"
+    year_print = input("Año de impresión [2026]: ").strip() or "2026"
+    printed_by = input("Impreso por [ALS]: ").strip() or "ALS"
+
+    try:
+        session.insert_book_front_matter(
+            title=title,
+            subtitle=subtitle,
+            author=author,
+            isbn=isbn,
+            year_pub=year_pub,
+            year_print=year_print,
+            printed_by=printed_by
+        )
+        print("\n✓ Se han generado e insertado las 4 páginas de portada al inicio en formato A4.")
+        print(f"  Total páginas en la sesión: {session.get_total_pages()}")
+    except Exception as e:
+        print(f"x Error al generar la portada: {e}")
