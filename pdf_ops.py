@@ -188,3 +188,27 @@ class PDFEditorSession:
 
         self.writer = new_writer
         self.has_unsaved_changes = True
+
+    def merge_pdfs(self, pdf_paths: list[str | Path]) -> None:
+        """
+        Une una lista de archivos PDF e integra el resultado en la sesión activa.
+        - pdf_paths: Lista de rutas a los archivos PDF que se van a fusionar.
+        """
+        if not pdf_paths:
+            raise ValueError("La lista de archivos PDF a unir está vacía.")
+
+        valid_paths = [Path(p) for p in pdf_paths if Path(p).is_file() and Path(p).suffix.lower() == ".pdf"]
+        
+        if not valid_paths:
+            raise FileNotFoundError("No se encontraron archivos PDF válidos en la lista proporcionada.")
+
+        new_writer = PdfWriter()
+
+        for path in valid_paths:
+            reader = PdfReader(path)
+            for page in reader.pages:
+                new_writer.add_page(page)
+
+        self.writer = new_writer
+        self.original_name = f"merged_{valid_paths[0].stem}"
+        self.has_unsaved_changes = True

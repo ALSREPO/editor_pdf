@@ -170,3 +170,53 @@ def run_insert_blank_pages(session: PDFEditorSession) -> None:
         print(f"\n✓ Se han insertado {count} página(s) en blanco. Total actual: {session.get_total_pages()} páginas.")
     except Exception as e:
         print(f"x Error al insertar páginas: {e}")
+
+def run_merge_pdfs(session: PDFEditorSession) -> None:
+    """Submenú para unir varios archivos PDF en uno solo."""
+    print("\n--- Unir Varios PDFs ---")
+    if session.has_unsaved_changes:
+        confirm = input("¡Atención! Tienes cambios sin guardar en la sesión actual. ¿Deseas reemplazar el documento cargado? (s/n): ").strip().lower()
+        if confirm != 's':
+            return
+
+    print("1) Pasar una lista de archivos PDF (separados por comas)")
+    print("2) Seleccionar un directorio (unirá todos los PDF en orden alfabético)")
+    print("0) Cancelar")
+
+    opt = input("Selecciona una opción: ").strip()
+    pdf_list: list[Path] = []
+
+    if opt == "1":
+        raw_input = input("Introduce las rutas de los archivos PDF separadas por comas:\n> ").strip()
+        if not raw_input:
+            return
+        
+        paths = [p.strip() for p in raw_input.split(",") if p.strip()]
+        pdf_list = [Path(p).resolve() for p in paths]
+
+    elif opt == "2":
+        dir_str = input("Introduce la ruta del directorio: ").strip()
+        dir_path = Path(dir_str).resolve()
+
+        if not dir_path.is_dir():
+            print("x Error: La ruta introducida no es un directorio válido.")
+            return
+
+        # Buscar todos los archivos .pdf y ordenarlos alfabéticamente
+        pdf_list = sorted([f for f in dir_path.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
+
+        if not pdf_list:
+            print(f"x No se encontraron archivos PDF en el directorio: {dir_path.name}")
+            return
+
+        print(f"✓ Se han encontrado {len(pdf_list)} archivos PDF en el directorio.")
+
+    else:
+        return
+
+    try:
+        session.merge_pdfs(pdf_list)
+        print(f"\n✓ Se han unido {len(pdf_list)} archivos correctamente.")
+        print(f"  Total páginas en la nueva sesión: {session.get_total_pages()}")
+    except Exception as e:
+        print(f"x Error durante la unión de archivos: {e}")
