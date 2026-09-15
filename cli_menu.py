@@ -432,3 +432,53 @@ def run_insert_index(session: PDFEditorSession) -> None:
         print(f"  Total páginas en la sesión: {session.get_total_pages()}")
     except Exception as e:
         print(f"x Error al procesar el índice: {e}")
+
+def run_insert_pdf_at(session: PDFEditorSession) -> None:
+    """Submenú para insertar un archivo PDF completo en una posición específica."""
+    if not session.is_loaded():
+        print("x Primero debes cargar un PDF base.")
+        return
+
+    print("\n--- Insertar otro PDF en una posición específica ---")
+    path_str = input("Ruta al archivo PDF que deseas insertar: ").strip()
+
+    if not path_str:
+        print("x Operación cancelada. Debes especificar una ruta.")
+        return
+
+    insert_path = Path(path_str).resolve()
+    if not insert_path.exists() or not insert_path.is_file():
+        print(f"x Error: No se encontró el archivo '{insert_path}'.")
+        return
+
+    total_pages = session.get_total_pages()
+    print("\n¿Dónde deseas insertar este PDF?")
+    print("1) Al principio del todo (Página 1)")
+    print("2) Al final del todo [Predeterminado]")
+    print(f"3) Después de una página específica (1 a {total_pages})")
+
+    opt = input("Selecciona una opción [2]: ").strip() or "2"
+
+    position = "end"
+    target_page = 1
+
+    if opt == "1":
+        position = "start"
+    elif opt == "3":
+        position = "after_page"
+        try:
+            page_inp = input(f"Insertar después de la página (1-{total_pages}): ").strip()
+            target_page = int(page_inp)
+            if target_page < 1 or target_page > total_pages:
+                print(f"x Número fuera de rango. Se ajustará entre 1 y {total_pages}.")
+                target_page = max(1, min(target_page, total_pages))
+        except ValueError:
+            print("x Entrada inválida. Se insertará al final.")
+            position = "end"
+
+    try:
+        session.insert_pdf_at(insert_path, position=position, page_num=target_page)
+        print("\n✓ Documento PDF insertado correctamente.")
+        print(f"  Total páginas actualizadas en la sesión: {session.get_total_pages()}")
+    except Exception as e:
+        print(f"x Error al insertar el PDF: {e}")

@@ -108,6 +108,7 @@ class PDFEditorSession:
             # --- GESTIÓN DE LA CABECERA ---
             if header_mode in ("hide", "custom"):
                 tamano_cabecera = 50
+                #tamano_cabecera = 60
                 c.setFillColor(white)
                 c.setStrokeColor(white)
                 c.rect(0, page_height - tamano_cabecera, page_width, tamano_cabecera, fill=True, stroke=False)
@@ -124,6 +125,7 @@ class PDFEditorSession:
             # --- GESTIÓN DEL PIE DE PÁGINA ---
             if footer_mode in ("hide", "number"):
                 tamano_pie = 55
+                #tamano_pie = 75
                 c.setFillColor(white)
                 c.setStrokeColor(white)
                 c.rect(0, 0, page_width, tamano_pie, fill=True, stroke=False)
@@ -559,6 +561,51 @@ class PDFEditorSession:
         else:
             for page in index_reader.pages:
                 new_writer.add_page(page)
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True
+
+    def insert_pdf_at(self, pdf_to_insert_path: Path, position: str = "end", page_num: int = 1) -> None:
+        """
+        Inserta el contenido de otro archivo PDF en una posición específica:
+        - position: 'start' (al principio), 'end' (al final), 'after_page' (después de page_num).
+        """
+        if not pdf_to_insert_path.exists() or not pdf_to_insert_path.is_file():
+            raise ValueError(f"El archivo especificado no existe o no es válido: {pdf_to_insert_path}")
+
+        try:
+            insert_reader = PdfReader(pdf_to_insert_path)
+        except Exception as e:
+            raise ValueError(f"No se pudo leer el PDF a insertar: {e}")
+
+        new_writer = PdfWriter()
+        total_orig = len(self.writer.pages) if self.is_loaded() else 0
+
+        if not self.is_loaded() or total_orig == 0:
+            # Si no hay un PDF base cargado, el PDF insertado pasa a ser el documento base
+            for page in insert_reader.pages:
+                new_writer.add_page(page)
+        elif position == "start":
+            # Insertar al principio
+            for page in insert_reader.pages:
+                new_writer.add_page(page)
+            for page in self.writer.pages:
+                new_writer.add_page(page)
+        elif position == "end":
+            # Insertar al final
+            for page in self.writer.pages:
+                new_writer.add_page(page)
+            for page in insert_reader.pages:
+                new_writer.add_page(page)
+        elif position == "after_page":
+            # Validar rango de la página de destino (1-based)
+            target_page = max(1, min(page_num, total_orig))
+            for i in range(target_page):
+                new_writer.add_page(self.writer.pages[i])
+            for page in insert_reader.pages:
+                new_writer.add_page(page)
+            for i in range(target_page, total_orig):
+                new_writer.add_page(self.writer.pages[i])
 
         self.writer = new_writer
         self.has_unsaved_changes = True
