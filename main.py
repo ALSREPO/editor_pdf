@@ -18,6 +18,7 @@ from cli_menu import (
     run_save_pdf,
     run_insert_index,
     run_insert_pdf_at,
+    run_impose_booklet,
 )
 
 
@@ -53,7 +54,8 @@ def main():
         print("9) Insertar índice desde archivo TXT")
         print("10) Modificar o ocultar cabecera")
         print("11) Modificar, ocultar o renumerar pie de página")
-        print("12) Guardar PDF final en disco")
+        print("12) Preparar cuadernillos para impresión")
+        print("13) Guardar PDF final en disco")
         print("0) Salir")
         print("----------------------------------")
 
@@ -82,6 +84,8 @@ def main():
         elif option == "11":
             run_modify_footer(session)
         elif option == "12":
+            run_impose_booklet(session)
+        elif option == "13":
             run_save_pdf(session)
         elif option == "0":
             if session.has_unsaved_changes:

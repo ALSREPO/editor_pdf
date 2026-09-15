@@ -4,6 +4,7 @@ cli_menu.py - Interfaz por consola para el editor de PDF acumulativo.
 
 from pathlib import Path
 from pdf_ops import PDFEditorSession
+from math import ceil
 
 
 def select_pdf_file(session: PDFEditorSession) -> None:
@@ -482,3 +483,56 @@ def run_insert_pdf_at(session: PDFEditorSession) -> None:
         print(f"  Total páginas actualizadas en la sesión: {session.get_total_pages()}")
     except Exception as e:
         print(f"x Error al insertar el PDF: {e}")
+
+def run_impose_booklet(session: PDFEditorSession) -> None:
+    """Submenú para realizar la imposición de cuadernillos."""
+    if not session.is_loaded():
+        print("x Primero debes cargar un PDF base.")
+        return
+
+    total_p = session.get_total_pages()
+    print(f"\n--- Imposición de Cuadernillos (Folleto) ---")
+    print(f"Páginas actuales del documento: {total_p}")
+
+    print("\n¿Cómo deseas definir la estructura de cuadernillos?")
+    print("1) Tamaño fijo para todos los cuadernillos (ej: 7 hojas / 28 pág por cuadernillo)")
+    print("2) Lista personalizada por cuadernillo (ej: 7,7,7,7,7,6,7,7,7,7,7)")
+
+    opt = input("Selecciona una opción [1]: ").strip() or "1"
+    sheets_list = []
+
+    if opt == "2":
+        raw = input("Introduce las hojas de cada cuadernillo separadas por comas (ej: 7,7,7,7,7,6,7,7,7,7,7): ").strip()
+        try:
+            sheets_list = [int(x.strip()) for x in raw.split(",") if x.strip()]
+        except ValueError:
+            print("x Error: Introduce una lista válida de números enteros.")
+            return
+    else:
+        try:
+            h = int(input("Número de hojas por cuadernillo [7]: ").strip() or "7")
+            total_needed = ceil(total_p / (h * 4))
+            sheets_list = [h] * total_needed
+        except ValueError:
+            print("x Entrada no válida.")
+            return
+
+    # Cálculo informativo
+    total_pages_covered = sum(s * 4 for s in sheets_list)
+    print(f"\nResumen de imposición:")
+    print(f"  * Cuadernillos a generar: {len(sheets_list)}")
+    print(f"  * Páginas que cubrirá: {total_pages_covered} (Páginas originales: {total_p})")
+    if total_pages_covered > total_p:
+        print(f"  * Se añadirán {total_pages_covered - total_p} páginas en blanco al final para completar el último cuadernillo.")
+
+    confirm = input("\n¿Proceder con la imposición? (s/n) [s]: ").strip().lower() or "s"
+    if confirm != 's':
+        print("Operación cancelada.")
+        return
+
+    try:
+        session.impose_booklet(sheets_list)
+        print("\n✓ Imposición completada correctamente.")
+        print("  El PDF resultante está listo para imprimir a doble cara por el borde corto.")
+    except Exception as e:
+        print(f"x Error durante la imposición: {e}")

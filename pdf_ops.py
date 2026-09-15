@@ -609,3 +609,84 @@ class PDFEditorSession:
 
         self.writer = new_writer
         self.has_unsaved_changes = True
+
+    def impose_booklet(self, sheets_per_signature_list: list[int]) -> None:
+        """
+        Reordena y escala las páginas del documento para generar un PDF de folleto (2-up A4)
+        dividido en cuadernillos con el número de hojas indicado en sheets_per_signature_list.
+        """
+        if not self.is_loaded() or self.get_total_pages() == 0:
+            raise ValueError("No hay un PDF base cargado para realizar la imposición.")
+
+        # 1. Ajustar el documento agregando páginas en blanco si no alcanza para cubrir los cuadernillos
+        total_pages_needed = sum(s * 4 for s in sheets_per_signature_list)
+        current_total = self.get_total_pages()
+
+        # Rellenar con páginas en blanco en memoria para trabajar
+        pages_pool = list(self.writer.pages)
+        if current_total < total_pages_needed:
+            # Crear una página A4 en blanco con reportlab
+            buf = io.BytesIO()
+            c = canvas.Canvas(buf, pagesize=(595.27, 841.89))
+            c.showPage()
+            c.save()
+            buf.seek(0)
+            blank_page = PdfReader(buf).pages[0]
+
+            for _ in range(total_pages_needed - current_total):
+                pages_pool.append(blank_page)
+
+        new_writer = PdfWriter()
+        a4_landscape_w, a4_landscape_h = 841.89, 595.27  # A4 horizontal en pt
+        half_width = a4_landscape_w / 2.0
+
+        current_page_idx = 0
+
+        for sheets in sheets_per_signature_list:
+            sig_page_count = sheets * 4
+            sig_pages = pages_pool[current_page_idx : current_page_idx + sig_page_count]
+            current_page_idx += sig_page_count
+
+            # Generar los pliegos del cuadernillo (2 caras por hoja)
+            for i in range(sheets):
+                # --- CARA FRONTAL (Anverso) ---
+                # Izquierda: página final del bloque / Derecha: página inicial del bloque
+                p_left_idx = sig_page_count - 1 - (2 * i)
+                p_right_idx = 2 * i
+
+                sheet_front = new_writer.add_blank_page(width=a4_landscape_w, height=a4_landscape_h)
+                
+                # Renderizar página izquierda
+                page_l = sig_pages[p_left_idx]
+                sheet_front.merge_transformed_page(
+                    page_l,
+                    ctm=[half_width / page_l.mediabox.width, 0, 0, a4_landscape_h / page_l.mediabox.height, 0, 0]
+                )
+                # Renderizar página derecha
+                page_r = sig_pages[p_right_idx]
+                sheet_front.merge_transformed_page(
+                    page_r,
+                    ctm=[half_width / page_r.mediabox.width, 0, 0, a4_landscape_h / page_r.mediabox.height, half_width, 0]
+                )
+
+                # --- CARA POSTERIOR (Reverso) ---
+                # Izquierda: página inicial + 1 / Derecha: página final - 1
+                p_left_idx_back = 2 * i + 1
+                p_right_idx_back = sig_page_count - 2 - (2 * i)
+
+                sheet_back = new_writer.add_blank_page(width=a4_landscape_w, height=a4_landscape_h)
+
+                page_l_back = sig_pages[p_left_idx_back]
+                sheet_back.merge_transformed_page(
+                    page_l_back,
+                    ctm=[half_width / page_l_back.mediabox.width, 0, 0, a4_landscape_h / page_l_back.mediabox.height, 0, 0]
+                )
+
+                page_r_back = sig_pages[p_right_idx_back]
+                sheet_back.merge_transformed_page(
+                    page_r_back,
+                    ctm=[half_width / page_r_back.mediabox.width, 0, 0, a4_landscape_h / page_r_back.mediabox.height, half_width, 0]
+                )
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True
