@@ -299,3 +299,56 @@ def run_delete_pages(session: PDFEditorSession) -> None:
 
     except Exception as e:
         print(f"x Error: {e}")
+
+def run_adjust_margins(session: PDFEditorSession) -> None:
+    """Submenú para ajustar márgenes horizontales (impares y pares)."""
+    if not session.is_loaded():
+        print("\nx No hay ningún documento en memoria.")
+        return
+
+    print("\n--- Ajustar Márgenes para Encuadernación ---")
+    print("1) Modo Simétrico (mismo desplazamiento en sentidos opuestos)")
+    print("2) Modo Asimétrico Independiente (desplazamiento personalizado para impares y pares)")
+    print("3) Ajustar solo páginas IMPARES")
+    print("4) Ajustar solo páginas PARES")
+    print("0) Cancelar")
+
+    opt = input("Selecciona una opción: ").strip()
+
+    shift_odd = 0.0
+    shift_even = 0.0
+
+    try:
+        if opt == "1":
+            val = float(input("Introduce los mm a mover (+ desplaza a la derecha, - a la izquierda): ").strip())
+            shift_odd = val
+            shift_even = -val
+
+        elif opt == "2":
+            shift_odd = float(input("Desplazamiento para páginas IMPARES en mm (+ derecha / - izquierda): ").strip())
+            shift_even = float(input("Desplazamiento para páginas PARES en mm (+ derecha / - izquierda): ").strip())
+
+        elif opt == "3":
+            shift_odd = float(input("Desplazamiento para páginas IMPARES en mm (+ derecha / - izquierda): ").strip())
+
+        elif opt == "4":
+            shift_even = float(input("Desplazamiento para páginas PARES en mm (+ derecha / - izquierda): ").strip())
+
+        else:
+            return
+
+        print(f"\nResumen de ajustes:")
+        print(f"  - Páginas IMPARES: {shift_odd:+.2f} mm")
+        print(f"  - Páginas PARES:   {shift_even:+.2f} mm")
+
+        confirm = input("¿Aplicar cambios? (s/n): ").strip().lower()
+        if confirm == 's':
+            session.adjust_margins(shift_odd, shift_even)
+            print("✓ Márgenes ajustados correctamente.")
+        else:
+            print("Operación cancelada.")
+
+    except ValueError:
+        print("x Error: Por favor, introduce un número válido (ejemplo: 6 u 1.5).")
+    except Exception as e:
+        print(f"x Error al ajustar márgenes: {e}")

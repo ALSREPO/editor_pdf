@@ -4,7 +4,7 @@ pdf_ops.py - Módulo para la manipulación en memoria de archivos PDF.
 
 import io
 from pathlib import Path
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter, Transformation
 from reportlab.lib.colors import white
 from reportlab.pdfgen import canvas
 
@@ -276,6 +276,35 @@ class PDFEditorSession:
             page_num = idx + 1
             if page_num not in pages_to_delete:
                 new_writer.add_page(page)
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True
+
+    def adjust_margins(self, shift_odd_mm: float, shift_even_mm: float) -> None:
+        """
+        Desplaza horizontalmente el contenido de las páginas para ajustar los márgenes de lomo.
+        - shift_odd_mm: Milímetros a desplazar en páginas impares (+ a la derecha, - a la izquierda).
+        - shift_even_mm: Milímetros a desplazar en páginas pares (+ a la derecha, - a la izquierda).
+        """
+        if not self.is_loaded():
+            raise RuntimeError("No hay ningún PDF cargado.")
+
+        mm_to_pts = 2.83465
+        shift_odd_pts = shift_odd_mm * mm_to_pts
+        shift_even_pts = shift_even_mm * mm_to_pts
+
+        new_writer = PdfWriter()
+
+        for idx, page in enumerate(self.writer.pages):
+            page_num = idx + 1
+            # Determinar desplazamiento según paridad
+            dx = shift_odd_pts if page_num % 2 != 0 else shift_even_pts
+
+            if dx != 0:
+                # Aplicar matriz de transformación de traducción horizontal
+                page.add_transformation(Transformation().translate(tx=dx, ty=0))
+
+            new_writer.add_page(page)
 
         self.writer = new_writer
         self.has_unsaved_changes = True
