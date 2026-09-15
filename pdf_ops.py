@@ -254,3 +254,28 @@ class PDFEditorSession:
         self.original_path = valid_paths[0].parent / f"merged_{valid_paths[0].stem}.pdf"
         self.original_name = self.original_path.stem
         self.reset_to_original()
+
+    def delete_pages(self, pages_to_delete: set[int]) -> None:
+        """
+        Elimina las páginas especificadas (basado en números de página de 1 a N).
+        - pages_to_delete: Conjunto de números de página (1-based) a eliminar.
+        """
+        if not self.is_loaded():
+            raise RuntimeError("No hay ningún PDF cargado.")
+
+        total = self.get_total_pages()
+        invalid_pages = [p for p in pages_to_delete if p < 1 or p > total]
+        if invalid_pages:
+            raise ValueError(f"Las siguientes páginas no existen en el documento (total: {total}): {invalid_pages}")
+
+        if len(pages_to_delete) >= total:
+            raise ValueError("No se pueden eliminar todas las páginas del documento.")
+
+        new_writer = PdfWriter()
+        for idx, page in enumerate(self.writer.pages):
+            page_num = idx + 1
+            if page_num not in pages_to_delete:
+                new_writer.add_page(page)
+
+        self.writer = new_writer
+        self.has_unsaved_changes = True

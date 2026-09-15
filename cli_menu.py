@@ -242,3 +242,60 @@ def run_merge_pdfs(session: PDFEditorSession) -> None:
         print(f"  Total páginas en la nueva sesión: {session.get_total_pages()}")
     except Exception as e:
         print(f"x Error durante la unión de archivos: {e}")
+
+def parse_page_selection(input_str: str, max_pages: int) -> set[int]:
+    """
+    Parsea cadenas del tipo '3, 8, 10-12, 15' y devuelve un conjunto de números de página (1-based).
+    """
+    pages_to_delete = set()
+    parts = [p.strip() for p in input_str.split(",") if p.strip()]
+
+    for part in parts:
+        if "-" in part:
+            bounds = part.split("-")
+            if len(bounds) != 2 or not bounds[0].isdigit() or not bounds[1].isdigit():
+                raise ValueError(f"Rango no válido: '{part}'")
+            start, end = int(bounds[0]), int(bounds[1])
+            if start > end:
+                raise ValueError(f"Rango invertido no válido: '{part}'")
+            pages_to_delete.update(range(start, end + 1))
+        else:
+            if not part.isdigit():
+                raise ValueError(f"Número de página no válido: '{part}'")
+            pages_to_delete.add(int(part))
+
+    return pages_to_delete
+
+
+def run_delete_pages(session: PDFEditorSession) -> None:
+    """Submenú para eliminar páginas individuales o rangos."""
+    if not session.is_loaded():
+        print("\nx No hay ningún documento en memoria.")
+        return
+
+    total = session.get_total_pages()
+    print("\n--- Eliminar Páginas ---")
+    print(f"Páginas totales actuales: {total}")
+    print("Introduce las páginas/rangos a borrar separados por comas (ejemplo: 3, 8, 10-12, 15):")
+    raw_input = input("> ").strip()
+
+    if not raw_input:
+        return
+
+    try:
+        pages_to_delete = parse_page_selection(raw_input, total)
+        
+        # Confirmación de las páginas que se van a eliminar
+        sorted_pages = sorted(list(pages_to_delete))
+        print(f"\nSe eliminarán las siguientes {len(sorted_pages)} página(s): {sorted_pages}")
+        confirm = input("¿Confirmas la eliminación? (s/n): ").strip().lower()
+        
+        if confirm == 's':
+            session.delete_pages(pages_to_delete)
+            print(f"✓ Páginas eliminadas correctamente.")
+            print(f"  Total de páginas restantes: {session.get_total_pages()}")
+        else:
+            print("Operación cancelada.")
+
+    except Exception as e:
+        print(f"x Error: {e}")
