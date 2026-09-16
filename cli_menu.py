@@ -525,13 +525,17 @@ def run_impose_booklet(session: PDFEditorSession) -> None:
     if total_pages_covered > total_p:
         print(f"  * Se añadirán {total_pages_covered - total_p} páginas en blanco al final para completar el último cuadernillo.")
 
+    ans = input("¿Insertar hoja separadora entre cuadernillos? (s/n) [s]: ").strip().lower()
+    add_separator = ans != 'n'
+
     confirm = input("\n¿Proceder con la imposición? (s/n) [s]: ").strip().lower() or "s"
     if confirm != 's':
         print("Operación cancelada.")
         return
 
     try:
-        session.impose_booklet(sheets_list)
+        session.impose_booklet(sheets_list, add_separator_sheet=add_separator)
+
         print("\n✓ Imposición completada correctamente.")
         print("  El PDF resultante está listo para imprimir a doble cara por el borde corto.")
     except Exception as e:

@@ -610,10 +610,13 @@ class PDFEditorSession:
         self.writer = new_writer
         self.has_unsaved_changes = True
 
-    def impose_booklet(self, sheets_per_signature_list: list[int]) -> None:
+    def impose_booklet(self, sheets_per_signature_list: list[int], add_separator_sheet: bool = True) -> None:
         """
         Reordena y escala las páginas del documento para generar un PDF de folleto (2-up A4)
         dividido en cuadernillos con el número de hojas indicado en sheets_per_signature_list.
+        
+        :param add_separator_sheet: Si es True (por defecto), añade una hoja en blanco 
+                                    (2 páginas del PDF final) entre cada cuadernillo para separarlos.
         """
         if not self.is_loaded() or self.get_total_pages() == 0:
             raise ValueError("No hay un PDF base cargado para realizar la imposición.")
@@ -641,8 +644,9 @@ class PDFEditorSession:
         half_width = a4_landscape_w / 2.0
 
         current_page_idx = 0
+        total_signatures = len(sheets_per_signature_list)
 
-        for sheets in sheets_per_signature_list:
+        for sig_idx, sheets in enumerate(sheets_per_signature_list):
             sig_page_count = sheets * 4
             sig_pages = pages_pool[current_page_idx : current_page_idx + sig_page_count]
             current_page_idx += sig_page_count
@@ -650,7 +654,6 @@ class PDFEditorSession:
             # Generar los pliegos del cuadernillo (2 caras por hoja)
             for i in range(sheets):
                 # --- CARA FRONTAL (Anverso) ---
-                # Izquierda: página final del bloque / Derecha: página inicial del bloque
                 p_left_idx = sig_page_count - 1 - (2 * i)
                 p_right_idx = 2 * i
 
@@ -670,7 +673,6 @@ class PDFEditorSession:
                 )
 
                 # --- CARA POSTERIOR (Reverso) ---
-                # Izquierda: página inicial + 1 / Derecha: página final - 1
                 p_left_idx_back = 2 * i + 1
                 p_right_idx_back = sig_page_count - 2 - (2 * i)
 
@@ -687,6 +689,11 @@ class PDFEditorSession:
                     page_r_back,
                     ctm=[half_width / page_r_back.mediabox.width, 0, 0, a4_landscape_h / page_r_back.mediabox.height, half_width, 0]
                 )
+
+            # Si no es el último cuadernillo y la separación está activa, insertamos 1 hoja completa (2 caras) en blanco
+            if add_separator_sheet and sig_idx < total_signatures - 1:
+                new_writer.add_blank_page(width=a4_landscape_w, height=a4_landscape_h)  # Anverso separador
+                new_writer.add_blank_page(width=a4_landscape_w, height=a4_landscape_h)  # Reverso separador
 
         self.writer = new_writer
         self.has_unsaved_changes = True

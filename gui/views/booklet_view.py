@@ -5,7 +5,7 @@ gui/views/booklet_view.py - Vista para imposición de cuadernillos en PySide6.
 import math
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QRadioButton,
-    QSpinBox, QLineEdit, QPushButton, QLabel, QMessageBox, QTextEdit
+    QSpinBox, QLineEdit, QPushButton, QLabel, QMessageBox, QCheckBox
 )
 from pdf_ops import PDFEditorSession
 
@@ -54,6 +54,14 @@ class BookletView(QWidget):
         self.txt_custom.textChanged.connect(self.update_summary)
         custom_layout.addWidget(self.txt_custom)
         config_layout.addLayout(custom_layout)
+
+        config_layout.addSpacing(10)
+
+        # Opción para insertar hoja separadora en blanco entre cuadernillos (Sí por defecto)
+        self.chk_separator = QCheckBox("Insertar hoja separadora en blanco entre cuadernillos")
+        self.chk_separator.setChecked(True)
+        self.chk_separator.toggled.connect(self.update_summary)
+        config_layout.addWidget(self.chk_separator)
 
         box_config.setLayout(config_layout)
         layout.addWidget(box_config)
@@ -118,14 +126,20 @@ class BookletView(QWidget):
 
         total_covered = sum(s * 4 for s in sheets_list)
         blank_added = max(0, total_covered - total_p)
+        num_signatures = len(sheets_list)
 
         text = (
             f"• Páginas actuales del documento: <b>{total_p}</b><br/>"
-            f"• Cuadernillos a generar: <b>{len(sheets_list)}</b><br/>"
-            f"• Páginas totales de folleto que cubrirá: <b>{total_covered}</b><br/>"
+            f"• Cuadernillos a generar: <b>{num_signatures}</b><br/>"
+            f"• Páginas totales de contenido folleto: <b>{total_covered}</b><br/>"
         )
         if blank_added > 0:
             text += f"• <font color='orange'>Se añadirán <b>{blank_added}</b> página(s) en blanco al final para completar el último cuadernillo.</font><br/>"
+        
+        if self.chk_separator.isChecked() and num_signatures > 1:
+            separators_count = num_signatures - 1
+            text += f"• <font color='#4CAF50'>Se añadirán <b>{separators_count}</b> hojas separadoras en blanco (2 caras por hoja) entre los cuadernillos.</font><br/>"
+
         text += "<br/><b>Instrucciones de impresión:</b> Imprimir a doble cara por el <b>borde corto</b> (*Flip on short edge*)."
 
         self.lbl_summary.setText(text)
@@ -137,8 +151,10 @@ class BookletView(QWidget):
             QMessageBox.warning(self, "Error", "La lista de cuadernillos introducida no es válida.")
             return
 
+        add_separator = self.chk_separator.isChecked()
+
         try:
-            self.session.impose_booklet(sheets_list)
+            self.session.impose_booklet(sheets_list, add_separator_sheet=add_separator)
             QMessageBox.information(
                 self, "Éxito",
                 "✓ Imposición realizada con éxito.\n"
