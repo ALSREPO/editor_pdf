@@ -1,36 +1,27 @@
 """
-main.py
+main.py - Punto de entrada unificado para el Editor de PDF (GUI PySide6 / CLI Terminal).
 """
 
 import sys
 from pathlib import Path
-from pdf_ops import PDFEditorSession
-from cli_menu import (
-    select_pdf_file,
-    run_extract_range,
-    run_delete_pages,
-    run_insert_blank_pages,
-    run_merge_pdfs,
-    run_adjust_margins,
-    run_insert_front_matter,
-    run_modify_header,
-    run_modify_footer,
-    run_save_pdf,
-    run_insert_index,
-    run_insert_pdf_at,
-    run_impose_booklet,
-)
 
 
-def main():
+def run_cli():
+    """Ejecuta el menú de consola interactivo tradicional."""
+    from pdf_ops import PDFEditorSession
+    from cli_menu import (
+        select_pdf_file, run_extract_range, run_delete_pages,
+        run_insert_blank_pages, run_merge_pdfs, run_adjust_margins,
+        run_insert_front_matter, run_modify_header, run_modify_footer,
+        run_save_pdf, run_insert_index, run_insert_pdf_at, run_impose_booklet
+    )
+
     session = PDFEditorSession()
 
-    if len(sys.argv) > 1:
-        arg_path = Path(sys.argv[1]).resolve()
+    if len(sys.argv) > 2:
+        arg_path = Path(sys.argv[2]).resolve()
         if session.load_pdf(arg_path):
             print(f"PDF cargado desde argumento: {arg_path.name} ({session.get_total_pages()} páginas)")
-        else:
-            print(f"Advertencia: '{sys.argv[1]}' no es un archivo PDF válido.")
 
     while True:
         if session.is_loaded():
@@ -41,7 +32,7 @@ def main():
             status = "[Ninguno seleccionado]"
 
         print("\n==================================")
-        print("        EDITOR MODULAR DE PDF     ")
+        print("         EDITOR MODULAR DE PDF     ")
         print("==================================")
         print(f"1) Cargar / Cambiar PDF {status}")
         print("2) Extraer / Recortar rango de páginas")
@@ -94,9 +85,29 @@ def main():
                     continue
             print("\n¡Hasta luego!")
             break
-        else:
-            print("x Opción no válida. Inténtalo de nuevo.")
+
+
+def run_gui():
+    """Arranca la interfaz gráfica PySide6."""
+    from PySide6.QtWidgets import QApplication
+    from gui.main_window import MainWindow
+
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+
+    # Si se pasa la ruta de un PDF como argumento adicional al arrancar la GUI: python main.py ruta.pdf
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("--"):
+        pdf_arg = Path(sys.argv[1]).resolve()
+        if pdf_arg.exists() and pdf_arg.suffix.lower() == ".pdf":
+            window.session.load_pdf(pdf_arg)
+            window.refresh_ui()
+
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    if "--cli" in sys.argv:
+        run_cli()
+    else:
+        run_gui()
