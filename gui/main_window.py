@@ -1,5 +1,5 @@
 """
-gui/main_window.py - Ventana principal en PySide6.
+gui/main_window.py - Ventana principal en PySide6 con estilo oscuro unificado.
 """
 
 from pathlib import Path
@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QFileDialog, QTabWidget, QMessageBox, QStatusBar
 )
-from PySide6.QtCore import Qt
 from pdf_ops import PDFEditorSession
 
 from gui.views.booklet_view import BookletView
@@ -20,7 +19,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.session = PDFEditorSession()
         self.setWindowTitle("Editor Modular de PDF (Edición e Imposición)")
-        self.resize(900, 650)
+        self.resize(920, 700)
 
         self.init_ui()
 
@@ -49,22 +48,27 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(top_bar)
 
-        # 2. Banner de Estado del PDF Activo
+        # 2. Banner de Estado del PDF Activo (Estilo Oscuro Integrado)
         self.lbl_status = QLabel("Documento Activo: Ninguno seleccionado")
-        self.lbl_status.setStyleSheet("font-weight: bold; font-size: 13px; padding: 6px; background-color: #e9ecef; border-radius: 4px;")
+        self.lbl_status.setStyleSheet(
+            "QLabel {"
+            "  font-weight: bold; font-size: 13px; padding: 8px 12px;"
+            "  background-color: #2b2b2b; color: #e0e0e0;"
+            "  border: 1px solid #3c3c3c; border-radius: 6px;"
+            "}"
+        )
         main_layout.addWidget(self.lbl_status)
 
-        # 3. Contenedor de Pestañas
+        # 3. Contenedor de Pestañas Principales
         self.tabs = QTabWidget()
 
-        # Instanciar Vistas
         self.view_booklet = BookletView(self.session, on_session_updated=self.refresh_ui)
         self.view_index = IndexView(self.session, on_session_updated=self.refresh_ui)
         self.view_pages = PagesView(self.session, on_session_updated=self.refresh_ui)
 
-        self.tabs.addTab(self.view_booklet, "📖 Imposición de Cuadernillos")
-        self.tabs.addTab(self.view_index, "📑 Generar e Insertar Índice")
         self.tabs.addTab(self.view_pages, "🛠 Edición de Páginas y Márgenes")
+        self.tabs.addTab(self.view_index, "📑 Generar e Insertar Índice")
+        self.tabs.addTab(self.view_booklet, "📖 Imposición de Cuadernillos")
 
         main_layout.addWidget(self.tabs)
 
@@ -78,11 +82,10 @@ class MainWindow(QMainWindow):
             name = self.session.original_name
             total = self.session.get_total_pages()
             unsaved = " *" if self.session.has_unsaved_changes else ""
-            self.lbl_status.setText(f"Documento Activo: {name}.pdf | {total} página(s){unsaved}")
+            self.lbl_status.setText(f"📄 Documento Activo: {name}.pdf | {total} página(s){unsaved}")
         else:
-            self.lbl_status.setText("Documento Activo: Ninguno seleccionado")
+            self.lbl_status.setText("📄 Documento Activo: Ninguno seleccionado")
 
-        # Notificar a las sub-vistas para refrescar rangos
         self.view_booklet.update_summary()
         self.view_pages.update_spin_bounds()
 
@@ -121,7 +124,7 @@ class MainWindow(QMainWindow):
             return
 
         default_path = str(self.session.original_path) if self.session.original_path else "documento_editado.pdf"
-        out_path_str, _ = QFileDialog.getSaveFileName(self, "Guardar PDF final", default_default_path if 'default_default_path' in locals() else default_path, "PDF Files (*.pdf)")
+        out_path_str, _ = QFileDialog.getSaveFileName(self, "Guardar PDF final", default_path, "PDF Files (*.pdf)")
 
         if out_path_str:
             out_path = Path(out_path_str)
