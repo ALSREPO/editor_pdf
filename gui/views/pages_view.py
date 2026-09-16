@@ -64,7 +64,7 @@ class PagesView(QWidget):
         box_edit.setLayout(h_edit)
         struct_layout.addWidget(box_edit)
 
-        # 1.2 Insertar PDF o Páginas Blancas (Opción 4)
+        # 1.2 Insertar PDF o Páginas Blancas
         box_ins = QGroupBox("Insertar Contenido")
         v_ins = QVBoxLayout()
 
@@ -86,7 +86,7 @@ class PagesView(QWidget):
         h_pdf.addWidget(btn_run_pdf)
         v_ins.addLayout(h_pdf)
 
-        # Hojas Blancas (Opción 4)
+        # Hojas Blancas
         h_blank = QHBoxLayout()
         h_blank.addWidget(QLabel("<b>Insertar Páginas Blancas:</b>"))
         self.spin_blank_count = QSpinBox()
@@ -107,28 +107,52 @@ class PagesView(QWidget):
         box_ins.setLayout(v_ins)
         struct_layout.addWidget(box_ins)
 
-        # 1.3 Portada Inicial (Opción 8)
-        box_front = QGroupBox("Insertar Páginas de Portada (Front Matter)")
-        v_front = QVBoxLayout()
-        h_front_path = QHBoxLayout()
-        self.txt_front_pdf = QLineEdit()
-        self.txt_front_pdf.setPlaceholderText("PDF con páginas de portada (ej: cortesía, título, créditos)...")
-        btn_browse_front = QPushButton("Examinar...")
-        btn_browse_front.clicked.connect(self.browse_front_pdf)
-        h_front_path.addWidget(self.txt_front_pdf)
-        h_front_path.addWidget(btn_browse_front)
-        v_front.addLayout(h_front_path)
+        # 1.3 Generar e Insertar Páginas de Portada (Front Matter - A4)
+        box_front = QGroupBox("Generar e Insertar Portada Inicial (4 páginas A4)")
+        form_front = QFormLayout()
 
-        h_front_opt = QHBoxLayout()
-        self.chk_front_pad = QCheckBox("Rellenar automáticamente con blanca si son impares")
-        self.chk_front_pad.setChecked(True)
-        h_front_opt.addWidget(self.chk_front_pad)
-        btn_run_front = QPushButton("Insertar Portada")
-        btn_run_front.clicked.connect(self.run_insert_front)
-        h_front_opt.addWidget(btn_run_front)
-        v_front.addLayout(h_front_opt)
+        self.txt_front_title = QLineEdit()
+        self.txt_front_title.setPlaceholderText("Título obligatorio del libro")
 
-        box_front.setLayout(v_front)
+        self.txt_front_subtitle = QLineEdit()
+        self.txt_front_subtitle.setPlaceholderText("Subtítulo (opcional)")
+
+        self.txt_front_author = QLineEdit()
+        self.txt_front_author.setPlaceholderText("Nombre del autor")
+
+        self.txt_front_isbn = QLineEdit()
+        self.txt_front_isbn.setText("-")
+
+        self.txt_front_pub_year = QLineEdit()
+        self.txt_front_pub_year.setText("2026")
+
+        self.txt_front_print_year = QLineEdit()
+        self.txt_front_print_year.setText("2026")
+
+        self.txt_front_printed_by = QLineEdit()
+        self.txt_front_printed_by.setText("ALS")
+
+        form_front.addRow("Título *:", self.txt_front_title)
+        form_front.addRow("Subtítulo:", self.txt_front_subtitle)
+        form_front.addRow("Autor:", self.txt_front_author)
+
+        h_front_meta = QHBoxLayout()
+        h_front_meta.addWidget(QLabel("ISBN:"))
+        h_front_meta.addWidget(self.txt_front_isbn)
+        h_front_meta.addWidget(QLabel("Año Pub.:"))
+        h_front_meta.addWidget(self.txt_front_pub_year)
+        h_front_meta.addWidget(QLabel("Año Imp.:"))
+        h_front_meta.addWidget(self.txt_front_print_year)
+        h_front_meta.addWidget(QLabel("Impreso por:"))
+        h_front_meta.addWidget(self.txt_front_printed_by)
+
+        form_front.addRow(h_front_meta)
+
+        btn_run_front = QPushButton("Generar e Insertar Portada (4 Págs)")
+        btn_run_front.clicked.connect(self.run_insert_front_matter)
+        form_front.addRow(btn_run_front)
+
+        box_front.setLayout(form_front)
         struct_layout.addWidget(box_front)
 
         struct_layout.addStretch()
@@ -157,7 +181,7 @@ class PagesView(QWidget):
         box_margins.setLayout(h_m)
         format_layout.addWidget(box_margins)
 
-        # Cabecera (Opción 10)
+        # Cabecera
         box_hdr = QGroupBox("Modificar / Ocultar Cabecera")
         form_hdr = QFormLayout()
         self.txt_hdr_text = QLineEdit()
@@ -172,7 +196,7 @@ class PagesView(QWidget):
         box_hdr.setLayout(form_hdr)
         format_layout.addWidget(box_hdr)
 
-        # Pie de página (Opción 11)
+        # Pie de página
         box_ftr = QGroupBox("Modificar / Renumerar Pie de Página")
         form_ftr = QFormLayout()
         self.chk_ftr_renumber = QCheckBox("Renumerar páginas automáticamente")
@@ -211,11 +235,6 @@ class PagesView(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "Seleccionar PDF a insertar", "", "PDF (*.pdf)")
         if path:
             self.txt_ins_pdf.setText(path)
-
-    def browse_front_pdf(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar Portada PDF", "", "PDF (*.pdf)")
-        if path:
-            self.txt_front_pdf.setText(path)
 
     def run_extract(self):
         if not self.session.is_loaded(): return
@@ -260,17 +279,42 @@ class PagesView(QWidget):
             if self.on_session_updated: self.on_session_updated()
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
-    def run_insert_front(self):
-        if not self.session.is_loaded(): return
-        p = Path(self.txt_front_pdf.text().strip())
-        if not p.exists():
-            QMessageBox.warning(self, "Atención", "Selecciona un archivo PDF válido para las portadas.")
+    def run_insert_front_matter(self):
+        if not self.session.is_loaded():
+            QMessageBox.warning(self, "Atención", "Primero debes cargar un documento PDF.")
             return
+
+        title = self.txt_front_title.text().strip()
+        if not title:
+            QMessageBox.warning(self, "Campo Obligatorio", "El título del libro es obligatorio.")
+            return
+
+        subtitle = self.txt_front_subtitle.text().strip()
+        author = self.txt_front_author.text().strip()
+        isbn = self.txt_front_isbn.text().strip() or "-"
+        year_pub = self.txt_front_pub_year.text().strip() or "2026"
+        year_print = self.txt_front_print_year.text().strip() or "2026"
+        printed_by = self.txt_front_printed_by.text().strip() or "ALS"
+
         try:
-            self.session.insert_front_matter(p, pad_to_even=self.chk_front_pad.isChecked())
-            QMessageBox.information(self, "Éxito", f"Portada insertada. Total páginas: {self.session.get_total_pages()}")
-            if self.on_session_updated: self.on_session_updated()
-        except Exception as e: QMessageBox.critical(self, "Error", str(e))
+            self.session.insert_book_front_matter(
+                title=title,
+                subtitle=subtitle,
+                author=author,
+                isbn=isbn,
+                year_pub=year_pub,
+                year_print=year_print,
+                printed_by=printed_by
+            )
+            QMessageBox.information(
+                self, "Éxito",
+                f"Se han generado e insertado las 4 páginas de portada al inicio en formato A4.\n"
+                f"Total páginas en la sesión: {self.session.get_total_pages()}"
+            )
+            if self.on_session_updated:
+                self.on_session_updated()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error al generar la portada: {e}")
 
     def run_margins(self):
         if not self.session.is_loaded(): return
